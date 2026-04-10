@@ -1,5 +1,10 @@
-import Dashboard from '@/components/Dashboard';
+import Shell from '@/components/Shell';
+import SessionsDashboard from '@/components/SessionsDashboard';
 
 export default function Home() {
-  return <Dashboard />;
+  return (
+    <Shell>
+      <SessionsDashboard />
+    </Shell>
+  );
 }

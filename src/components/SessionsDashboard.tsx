@@ -67,7 +67,7 @@ function pillClass(active: boolean) {
   ].join(' ');
 }
 
-export default function Dashboard() {
+export default function SessionsDashboard() {
   const [filter, setFilter] = useState('all');
   const [sessionsRes, setSessionsRes] = useState<SessionsResponse>({ ok: false });
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);

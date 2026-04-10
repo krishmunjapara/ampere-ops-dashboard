@@ -21,12 +21,10 @@ export async function GET(
 
     return NextResponse.json({ ok: true, ...page });
   } catch (e: any) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: e?.message ?? String(e),
-      },
-      { status: 500 },
-    );
+    // Return 200 with ok:false so missing OpenClaw files don’t present as "Internal Server Error".
+    return NextResponse.json({
+      ok: false,
+      error: e?.message ?? String(e),
+    });
   }
 }

@@ -21,12 +21,10 @@ export async function GET() {
       },
     });
   } catch (e: any) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: e?.message ?? String(e),
-      },
-      { status: 500 },
-    );
+    // Return 200 with ok:false so UIs (and Vercel) don't look like a broken deployment.
+    return NextResponse.json({
+      ok: false,
+      error: e?.message ?? String(e),
+    });
   }
 }

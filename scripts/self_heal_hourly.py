@@ -133,7 +133,7 @@ def ga4_query(property_id: str, since_minutes: int):
                 }
             )
 
-    return out
+    return out, ("rich" if rich else "fallback")
 
 
 def signature_for(r: dict) -> str:
@@ -163,7 +163,7 @@ def main() -> int:
     args = ap.parse_args()
 
     started_at = int(time.time() * 1000)
-    rows = ga4_query(args.property, args.since_minutes)
+    rows, mode = ga4_query(args.property, args.since_minutes)
 
     counts = {}
     for r in rows:
@@ -181,14 +181,14 @@ def main() -> int:
         "startedAt": started_at,
         "finishedAt": finished_at,
         "status": "ok",
-        "digest": {"sinceMinutes": args.since_minutes, "topNew": top_new, "topRecurring": []},
+        "digest": {"sinceMinutes": args.since_minutes, "mode": mode, "topNew": top_new, "topRecurring": []},
         "action": None,
         "signatures": [{"signature": s, "status": "new", "lastCount": c} for s, c in top_new],
     }
 
     post_json(args.dashboard_url.rstrip("/") + "/api/ingest/self-heal-run", payload)
 
-    print(json.dumps({"ok": True, "id": idempotency, "top": top_new}, indent=2))
+    print(json.dumps({"ok": True, "id": idempotency, "mode": mode, "top": top_new}, indent=2))
     return 0
 
 

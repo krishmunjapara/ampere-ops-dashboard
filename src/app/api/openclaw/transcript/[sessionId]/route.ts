@@ -8,6 +8,15 @@ export async function GET(
   ctx: { params: Promise<{ sessionId: string }> },
 ) {
   try {
+    // Vercel serverless cannot read OpenClaw's on-disk transcript files.
+    if (process.env.VERCEL) {
+      return NextResponse.json({
+        ok: false,
+        error:
+          'OpenClaw transcripts are not available on Vercel. Run the dashboard on the OpenClaw host (Ampere server) and access it via SSH tunnel, or add a connector/ingestion bridge.',
+      });
+    }
+
     const { sessionId } = await ctx.params;
     const url = new URL(_req.url);
     const offset = url.searchParams.get('offset');
@@ -21,7 +30,6 @@ export async function GET(
 
     return NextResponse.json({ ok: true, ...page });
   } catch (e: any) {
-    // Return 200 with ok:false so missing OpenClaw files don’t present as "Internal Server Error".
     return NextResponse.json({
       ok: false,
       error: e?.message ?? String(e),

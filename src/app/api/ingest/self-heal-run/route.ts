@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { appendCronRun, upsertSelfHealSignatures } from '@/lib/store';
+import { appendCronRun, upsertSelfHealSignatures } from '@/lib/storage';
 
 export const runtime = 'nodejs';
 

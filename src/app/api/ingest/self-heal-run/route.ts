@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbExec } from '@/lib/db';
+import { appendCronRun, upsertSelfHealSignatures } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -46,41 +46,29 @@ export async function POST(req: Request) {
       action: body.action ?? null,
     };
 
-    await dbExec(db => {
-      db.prepare(
-        `INSERT OR IGNORE INTO cron_runs (id, type, started_at, finished_at, status, summary_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?);`,
-      ).run([id, type, startedAt, finishedAt, status, JSON.stringify(summary), now]);
-
-      const sigs = body.signatures ?? [];
-      const up = db.prepare(
-        `INSERT INTO self_heal_signatures (signature, status, first_seen, last_seen, last_count, daily_branch, daily_pr_url, last_fix_commit_sha)
-         VALUES (@signature, @status, @first_seen, @last_seen, @last_count, @daily_branch, @daily_pr_url, @last_fix_commit_sha)
-         ON CONFLICT(signature) DO UPDATE SET
-           status=excluded.status,
-           first_seen=COALESCE(self_heal_signatures.first_seen, excluded.first_seen),
-           last_seen=MAX(COALESCE(self_heal_signatures.last_seen, 0), COALESCE(excluded.last_seen, 0)),
-           last_count=COALESCE(excluded.last_count, self_heal_signatures.last_count),
-           daily_branch=COALESCE(excluded.daily_branch, self_heal_signatures.daily_branch),
-           daily_pr_url=COALESCE(excluded.daily_pr_url, self_heal_signatures.daily_pr_url),
-           last_fix_commit_sha=COALESCE(excluded.last_fix_commit_sha, self_heal_signatures.last_fix_commit_sha);
-        `,
-      );
-
-      for (const s of sigs) {
-        if (!s.signature) continue;
-        up.run({
-          signature: s.signature,
-          status: s.status ?? 'new',
-          first_seen: s.firstSeen ?? now,
-          last_seen: s.lastSeen ?? now,
-          last_count: s.lastCount ?? null,
-          daily_branch: body.action?.dailyBranch ?? null,
-          daily_pr_url: body.action?.prUrl ?? null,
-          last_fix_commit_sha: body.action?.commitSha ?? null,
-        });
-      }
+    await appendCronRun({
+      id,
+      type,
+      started_at: startedAt,
+      finished_at: finishedAt,
+      status,
+      summary_json: JSON.stringify(summary),
+      created_at: now,
     });
+
+    const sigs = body.signatures ?? [];
+    await upsertSelfHealSignatures(
+      sigs.map(s => ({
+        signature: s.signature,
+        status: s.status ?? 'new',
+        first_seen: s.firstSeen ?? now,
+        last_seen: s.lastSeen ?? now,
+        last_count: s.lastCount,
+        daily_branch: body.action?.dailyBranch,
+        daily_pr_url: body.action?.prUrl,
+        last_fix_commit_sha: body.action?.commitSha,
+      })),
+    );
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {

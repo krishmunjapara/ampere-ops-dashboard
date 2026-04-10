@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbQuery, rowsFromStmt } from '@/lib/db';
+import { listCronRuns } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -9,27 +9,7 @@ export async function GET(req: Request) {
     const type = url.searchParams.get('type');
     const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? 50)));
 
-    const rows = await dbQuery(db => {
-      if (type) {
-        const q = db.prepare(
-          `SELECT id, type, started_at, finished_at, status, summary_json, created_at
-           FROM cron_runs
-           WHERE type = ?
-           ORDER BY created_at DESC
-           LIMIT ?;`,
-        );
-        return rowsFromStmt(q.bind(type, limit));
-      }
-
-      const q = db.prepare(
-        `SELECT id, type, started_at, finished_at, status, summary_json, created_at
-         FROM cron_runs
-         ORDER BY created_at DESC
-         LIMIT ?;`,
-      );
-      return rowsFromStmt(q.bind(limit));
-    });
-
+    const rows = await listCronRuns({ type: type ?? undefined, limit });
     return NextResponse.json({ ok: true, runs: rows });
   } catch (e: any) {
     return NextResponse.json(

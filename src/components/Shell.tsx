@@ -28,8 +28,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <Link href="/self-healing" className={navClass(pathname === '/self-healing')}>
               Self-Healing
             </Link>
+            <Link href="/ux-ideas" className={navClass(pathname === '/ux-ideas')}>
+              GA4 UX Ideas
+            </Link>
             <Link href="/competitors" className={navClass(pathname === '/competitors')}>
               Competitors
+            </Link>
+            <Link href="/updates" className={navClass(pathname === '/updates')}>
+              Updates
             </Link>
           </nav>
 

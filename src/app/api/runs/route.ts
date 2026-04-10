@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listCronRuns } from '@/lib/store';
+import { listCronRuns } from '@/lib/storage';
 
 export const runtime = 'nodejs';
 

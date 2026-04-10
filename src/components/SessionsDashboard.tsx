@@ -141,15 +141,17 @@ export default function SessionsDashboard() {
 
   const stats = sessionsRes.stats;
 
+  const sessionsError = !sessionsRes.ok ? (sessionsRes.error ?? 'Failed to load sessions') : null;
+  const looksLikeMissingFiles = sessionsError ? /ENOENT|no such file|EACCES|permission/i.test(sessionsError) : false;
+
   return (
-    <div className="min-h-screen bg-[#0b0f14] text-white">
-      {/* Top bar */}
-      <div className="sticky top-0 z-10 border-b border-white/10 bg-[#0b0f14]/80 backdrop-blur">
-        <div className="mx-auto flex max-w-[1600px] items-center gap-4 px-4 py-3">
-          <div className="text-sm font-semibold tracking-wide">Ampere Ops Dashboard</div>
+    <div className="space-y-4">
+      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-sm font-semibold">Sessions</div>
           <div className="ml-auto flex items-center gap-3 text-xs text-white/70">
             <div className="rounded-md border border-white/10 px-2 py-1">
-              sessions: <span className="text-white">{stats?.total ?? '—'}</span>
+              total: <span className="text-white">{stats?.total ?? '—'}</span>
             </div>
             <div className="rounded-md border border-white/10 px-2 py-1">
               active: <span className="text-white">{stats?.active ?? '—'}</span>
@@ -160,36 +162,37 @@ export default function SessionsDashboard() {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="mx-auto flex max-w-[1600px] items-center gap-2 px-4 pb-3">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           {FILTERS.map(f => (
-            <button
-              key={f.key}
-              className={pillClass(filter === f.key)}
-              onClick={() => setFilter(f.key)}
-            >
+            <button key={f.key} className={pillClass(filter === f.key)} onClick={() => setFilter(f.key)}>
               {f.label}
             </button>
           ))}
-          <div className="ml-auto text-xs text-white/40">
-            {sessionsRes.config?.sessionsFile ? (
-              <span>source: {sessionsRes.config.sessionsFile}</span>
-            ) : null}
+          <div className="ml-auto text-[11px] text-white/40">
+            {sessionsRes.config?.sessionsFile ? <span>source: {sessionsRes.config.sessionsFile}</span> : null}
           </div>
         </div>
+
+        {sessionsError ? (
+          <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+            <div className="font-semibold">Sessions API error</div>
+            <div className="mt-1 font-mono text-[12px] text-red-200/90 break-words">{sessionsError}</div>
+
+            {looksLikeMissingFiles ? (
+              <div className="mt-2 text-[12px] text-red-100/80">
+                This happens when you run the dashboard on a machine that does not have OpenClaw session files (common on Windows/Vercel).
+                To see live sessions, run the dashboard on the OpenClaw host (Ampere server) and open it via SSH tunnel.
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
-      {/* Main layout */}
-      <div className="mx-auto grid max-w-[1600px] grid-cols-12 gap-4 px-4 py-4">
+      <div className="grid grid-cols-12 gap-4">
         {/* Session list */}
-        <div className="col-span-4 overflow-hidden rounded-xl border border-white/10 bg-white/5">
-          <div className="border-b border-white/10 px-3 py-2 text-xs font-semibold text-white/80">
-            Sessions
-          </div>
-          <div className="max-h-[calc(100vh-170px)] overflow-auto">
-            {!sessionsRes.ok ? (
-              <div className="p-3 text-sm text-red-300">{sessionsRes.error ?? 'Failed to load sessions'}</div>
-            ) : null}
+        <div className="col-span-5 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+          <div className="border-b border-white/10 px-3 py-2 text-xs font-semibold text-white/80">Session list</div>
+          <div className="max-h-[calc(100vh-240px)] overflow-auto">
             {filtered.map(s => {
               const selected = s.sessionId === selectedSessionId;
               return (
@@ -206,9 +209,7 @@ export default function SessionsDashboard() {
                   }}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-xs rounded-md border border-white/10 bg-black/20 px-2 py-0.5 text-white/70">
-                      {s.kind}
-                    </span>
+                    <span className="text-xs rounded-md border border-white/10 bg-black/20 px-2 py-0.5 text-white/70">{s.kind}</span>
                     <span className="truncate text-sm text-white/90">{s.sessionKey}</span>
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-[11px] text-white/50">
@@ -219,27 +220,22 @@ export default function SessionsDashboard() {
                 </button>
               );
             })}
+            {sessionsRes.ok && filtered.length === 0 ? (
+              <div className="p-3 text-sm text-white/60">No sessions for this filter.</div>
+            ) : null}
           </div>
         </div>
 
-        {/* Detail panel */}
-        <div className="col-span-8 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+        {/* Transcript panel */}
+        <div className="col-span-7 overflow-hidden rounded-xl border border-white/10 bg-white/5">
           <div className="flex items-center gap-3 border-b border-white/10 px-3 py-2">
             <div className="text-xs font-semibold text-white/80">Transcript</div>
             <div className="truncate text-xs text-white/50">{selectedSessionKey ?? ''}</div>
             <div className="ml-auto flex items-center gap-2">
-              <button
-                className={pillClass(false)}
-                onClick={() => setTranscriptOffset(o => Math.max(0, o - 200))}
-                disabled={transcriptOffset === 0}
-              >
+              <button className={pillClass(false)} onClick={() => setTranscriptOffset(o => Math.max(0, o - 200))} disabled={transcriptOffset === 0}>
                 Prev
               </button>
-              <button
-                className={pillClass(false)}
-                onClick={() => setTranscriptOffset(o => o + 200)}
-                disabled={!transcriptRes.ok || !transcriptRes.nextOffset}
-              >
+              <button className={pillClass(false)} onClick={() => setTranscriptOffset(o => o + 200)} disabled={!transcriptRes.ok || !transcriptRes.nextOffset}>
                 Next
               </button>
               <button className={pillClass(false)} onClick={() => setTranscriptOffset(0)}>
@@ -248,10 +244,8 @@ export default function SessionsDashboard() {
             </div>
           </div>
 
-          <div className="max-h-[calc(100vh-170px)] overflow-auto p-3">
-            {!selectedSessionId ? (
-              <div className="text-sm text-white/60">Select a session</div>
-            ) : null}
+          <div className="max-h-[calc(100vh-240px)] overflow-auto p-3">
+            {!selectedSessionId ? <div className="text-sm text-white/60">Select a session</div> : null}
 
             {selectedSessionId && !transcriptRes.ok ? (
               <div className="text-sm text-red-300">{transcriptRes.error ?? 'Failed to load transcript'}</div>
@@ -259,9 +253,7 @@ export default function SessionsDashboard() {
 
             {transcriptRes.ok && transcriptRes.entries ? (
               <div className="space-y-2">
-                <div className="text-[11px] text-white/40">
-                  file: {transcriptRes.file} • offset: {transcriptRes.offset} • limit: {transcriptRes.limit}
-                </div>
+                <div className="text-[11px] text-white/40">file: {transcriptRes.file} • offset: {transcriptRes.offset} • limit: {transcriptRes.limit}</div>
 
                 {transcriptRes.entries.map(e => (
                   <div key={e.line} className="rounded-lg border border-white/10 bg-black/20 p-2">
@@ -271,7 +263,7 @@ export default function SessionsDashboard() {
                       {e.type ? <span>• {e.type}</span> : null}
                       {e.ts ? <span className="ml-auto">{formatTime(Number(e.ts))}</span> : null}
                     </div>
-                    <div className="mt-1 font-mono text-[12px] leading-5 text-white/80 whitespace-pre-wrap break-words">
+                    <div className="mt-1 whitespace-pre-wrap break-words font-mono text-[12px] leading-5 text-white/80">
                       {e.contentPreview ?? JSON.stringify(e.raw)}
                     </div>
                   </div>

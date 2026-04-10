@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbExec } from '@/lib/db';
+import { appendCronRun } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -28,16 +28,14 @@ export async function POST(req: Request) {
     const finishedAt = body.finishedAt ?? now;
     const status = body.status ?? 'ok';
 
-    await dbExec(db => {
-      db.prepare(
-        `INSERT OR IGNORE INTO competitor_runs (id, started_at, finished_at, status, payload_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?);`,
-      ).run([id, startedAt, finishedAt, status, JSON.stringify(body.payload), now]);
-
-      db.prepare(
-        `INSERT OR IGNORE INTO cron_runs (id, type, started_at, finished_at, status, summary_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?);`,
-      ).run([id, 'competitor_intel', startedAt, finishedAt, status, JSON.stringify(body.payload), now]);
+    await appendCronRun({
+      id,
+      type: 'competitor_intel',
+      started_at: startedAt,
+      finished_at: finishedAt,
+      status,
+      summary_json: JSON.stringify(body.payload),
+      created_at: now,
     });
 
     return NextResponse.json({ ok: true });

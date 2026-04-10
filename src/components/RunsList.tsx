@@ -29,7 +29,8 @@ export default function RunsList({ type }: { type: string }) {
 
     async function load() {
       try {
-        const res = await fetch(`/api/runs?type=${encodeURIComponent(type)}&limit=50`, { cache: 'no-store' });
+        const qsType = type ? `type=${encodeURIComponent(type)}&` : '';
+        const res = await fetch(`/api/runs?${qsType}limit=50`, { cache: 'no-store' });
         const json = await res.json();
         if (!alive) return;
         if (!json.ok) {
@@ -55,7 +56,7 @@ export default function RunsList({ type }: { type: string }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/5">
       <div className="border-b border-white/10 px-3 py-2 text-xs font-semibold text-white/80">
-        Recent runs: <span className="text-white/70">{type}</span>
+        Recent runs: <span className="text-white/70">{type || 'all'}</span>
       </div>
       <div className="p-3">
         {error ? <div className="text-sm text-red-300">{error}</div> : null}

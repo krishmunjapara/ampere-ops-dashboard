@@ -17,11 +17,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#0b0f14] text-white">
       <div className="mx-auto grid max-w-[1600px] grid-cols-12 gap-4 px-4 py-4">
         <aside className="col-span-2 rounded-xl border border-white/10 bg-white/5 p-2">
-          <div className="px-3 pb-2 pt-1 text-xs font-semibold text-white/70">Ops</div>
+          <div className="px-3 pb-2 pt-1 text-xs font-semibold text-white/70">Results</div>
           <nav className="space-y-1">
-            <Link href="/" className={navClass(pathname === '/')}>
-              Sessions
-            </Link>
             <Link href="/activity" className={navClass(pathname === '/activity')}>
               All Activity
             </Link>
@@ -38,6 +35,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               Updates
             </Link>
           </nav>
+
+          <div className="mt-4 border-t border-white/10 pt-3">
+            <div className="px-3 pb-2 pt-1 text-xs font-semibold text-white/70">Behind the scenes</div>
+            <nav className="space-y-1">
+              <Link href="/" className={navClass(pathname === '/')}>
+                Sessions
+              </Link>
+            </nav>
+          </div>
 
           <div className="mt-4 border-t border-white/10 pt-3">
             <div className="px-3 text-[11px] text-white/40">Local-only. No auth.</div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import RunCard from '@/components/RunCard';
 
 type RunRow = {
   id: string;
@@ -11,14 +12,6 @@ type RunRow = {
   summary_json: string;
   created_at: number;
 };
-
-function formatTime(ts: number) {
-  try {
-    return new Date(ts).toLocaleString();
-  } catch {
-    return String(ts);
-  }
-}
 
 export default function RunsList({ type }: { type: string }) {
   const [rows, setRows] = useState<RunRow[]>([]);
@@ -63,28 +56,9 @@ export default function RunsList({ type }: { type: string }) {
         {!error && rows.length === 0 ? <div className="text-sm text-white/60">No runs ingested yet.</div> : null}
 
         <div className="space-y-2">
-          {rows.map(r => {
-            let summary: any = null;
-            try {
-              summary = JSON.parse(r.summary_json);
-            } catch {
-              summary = r.summary_json;
-            }
-
-            return (
-              <div key={r.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
-                <div className="flex items-center gap-2 text-[11px] text-white/50">
-                  <span className="text-white/70">{r.status}</span>
-                  <span>•</span>
-                  <span>{formatTime(r.created_at)}</span>
-                  <span className="ml-auto font-mono">{r.id}</span>
-                </div>
-                <pre className="mt-2 whitespace-pre-wrap break-words rounded-md bg-black/30 p-2 text-[12px] text-white/80">
-                  {JSON.stringify(summary, null, 2)}
-                </pre>
-              </div>
-            );
-          })}
+          {rows.map(r => (
+            <RunCard key={r.id} run={r} />
+          ))}
         </div>
       </div>
     </div>

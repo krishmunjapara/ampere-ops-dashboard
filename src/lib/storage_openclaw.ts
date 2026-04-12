@@ -27,6 +27,7 @@ let _migrated = false;
 async function migrate(sql: any) {
   if (_migrated) return;
 
+  // Neon serverless doesn't allow multiple SQL commands per prepared statement.
   await sql`
     CREATE TABLE IF NOT EXISTS openclaw_sessions (
       session_key TEXT PRIMARY KEY,
@@ -38,7 +39,9 @@ async function migrate(sql: any) {
       chat_type TEXT,
       last_channel TEXT
     );
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS openclaw_events (
       event_id TEXT PRIMARY KEY,
       session_key TEXT,

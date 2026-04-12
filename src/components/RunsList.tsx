@@ -22,12 +22,17 @@ export default function RunsList({ type }: { type: string }) {
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [status, setStatus] = useState<string>('');
+  const [q, setQ] = useState<string>('');
+
   async function load(pageBefore: number | null) {
     setLoading(true);
     try {
       const qsType = type ? `type=${encodeURIComponent(type)}&` : '';
       const qsBefore = pageBefore ? `before=${pageBefore}&` : '';
-      const res = await fetch(`/api/runs?${qsType}${qsBefore}limit=25`, { cache: 'no-store' });
+      const qsStatus = status ? `status=${encodeURIComponent(status)}&` : '';
+      const qsQ = q.trim() ? `q=${encodeURIComponent(q.trim())}&` : '';
+      const res = await fetch(`/api/runs?${qsType}${qsStatus}${qsQ}${qsBefore}limit=25`, { cache: 'no-store' });
       const json = await res.json();
       if (!json.ok) {
         setError(json.error ?? 'Failed');
@@ -43,22 +48,44 @@ export default function RunsList({ type }: { type: string }) {
     }
   }
 
-  // Reset pagination when type changes
+  // Reset pagination when filters change
   useEffect(() => {
     setBefore(null);
     setStack([]);
     setNextBefore(null);
     load(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type]);
+  }, [type, status, q]);
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5">
-      <div className="flex items-center gap-3 border-b border-white/10 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2">
         <div className="text-xs font-semibold text-white/80">
           Runs: <span className="text-white/70">{type || 'all'}</span>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <select
+            className="text-[11px] rounded-md border border-white/10 bg-black/30 px-2 py-1 text-white/70"
+            value={status}
+            onChange={e => setStatus(e.target.value)}
+            disabled={loading}
+          >
+            <option value="">All statuses</option>
+            <option value="ok">ok</option>
+            <option value="error">error</option>
+            <option value="running">running</option>
+            <option value="skipped">skipped</option>
+          </select>
+
+          <input
+            className="w-[220px] max-w-full text-[11px] rounded-md border border-white/10 bg-black/30 px-2 py-1 text-white/70 placeholder:text-white/30"
+            placeholder="Search summary JSON…"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            disabled={loading}
+          />
+
           <button
             className="text-[11px] rounded-md border border-white/10 bg-white/5 px-2 py-1 text-white/70 hover:text-white hover:border-white/20"
             onClick={() => {

@@ -19,6 +19,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <aside className="col-span-2 rounded-xl border border-white/10 bg-white/5 p-2">
           <div className="px-3 pb-2 pt-1 text-xs font-semibold text-white/70">Results</div>
           <nav className="space-y-1">
+            <Link href="/" className={navClass(pathname === '/' || pathname === '/home')}>
+              Command Center
+            </Link>
             <Link href="/activity" className={navClass(pathname === '/activity')}>
               All Activity
             </Link>
@@ -42,7 +45,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <div className="mt-4 border-t border-white/10 pt-3">
             <div className="px-3 pb-2 pt-1 text-xs font-semibold text-white/70">Behind the scenes</div>
             <nav className="space-y-1">
-              <Link href="/" className={navClass(pathname === '/')}>
+              <Link href="/sessions" className={navClass(pathname === '/sessions')}>
                 Sessions
               </Link>
             </nav>

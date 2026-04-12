@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import Link from 'next/link';
 
 type RunRow = {
   id: string;
@@ -109,7 +110,12 @@ export default function RunCard({ run }: { run: RunRow }) {
       <span className="text-[11px] text-white/50">{formatTime(run.created_at)}</span>
       <span className="text-[11px] text-white/30">•</span>
       <span className="text-[11px] text-white/50">status: {run.status}</span>
-      <span className="ml-auto font-mono text-[11px] text-white/40">{run.id}</span>
+      <span className="ml-auto flex items-center gap-2 font-mono text-[11px] text-white/40">
+        <Link className="font-sans text-[11px] text-white/60 underline underline-offset-2 hover:text-white" href={`/runs/${run.id}`}>
+          Details
+        </Link>
+        <span>{run.id}</span>
+      </span>
     </div>
   );
 

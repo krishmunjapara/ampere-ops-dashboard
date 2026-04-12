@@ -167,7 +167,7 @@ function normalizeRunRow(r: any): CronRunRow {
   };
 }
 
-export async function listCronRuns(params: { type?: string; limit: number }): Promise<CronRunRow[]> {
+export async function listCronRuns(params: { type?: string; limit: number; before?: number }): Promise<CronRunRow[]> {
   if (shouldUseFileStore()) {
     return listCronRunsFile(params);
   }
@@ -176,11 +176,14 @@ export async function listCronRuns(params: { type?: string; limit: number }): Pr
   const sql = neon(url);
   await migrate(sql);
 
+  const before = params.before ?? null;
+
   if (params.type) {
     const rows = await sql`
       SELECT id, type, started_at, finished_at, status, summary_json, created_at
       FROM cron_runs
       WHERE type = ${params.type}
+        AND (${before}::bigint IS NULL OR created_at < ${before})
       ORDER BY created_at DESC
       LIMIT ${params.limit};
     `;
@@ -190,6 +193,7 @@ export async function listCronRuns(params: { type?: string; limit: number }): Pr
   const rows = await sql`
     SELECT id, type, started_at, finished_at, status, summary_json, created_at
     FROM cron_runs
+    WHERE (${before}::bigint IS NULL OR created_at < ${before})
     ORDER BY created_at DESC
     LIMIT ${params.limit};
   `;

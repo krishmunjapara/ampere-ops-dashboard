@@ -113,7 +113,7 @@ export async function appendOpenClawEvents(rows: OpenClawEventRow[]) {
   }
 }
 
-export async function listOpenClawEvents(params: { limit: number; sessionId?: string }): Promise<OpenClawEventRow[]> {
+export async function listOpenClawEvents(params: { limit: number; sessionId?: string; before?: number }): Promise<OpenClawEventRow[]> {
   if (shouldUseFileStore()) {
     return listOpenClawEventsFile(params);
   }
@@ -122,11 +122,14 @@ export async function listOpenClawEvents(params: { limit: number; sessionId?: st
   const sql = neon(url);
   await migrate(sql);
 
+  const before = params.before ?? null;
+
   if (params.sessionId) {
     const rows = await sql`
       SELECT event_id, session_key, session_id, line, timestamp, type, role, tool_name, content_preview, raw_json, created_at
       FROM openclaw_events
       WHERE session_id = ${params.sessionId}
+        AND (${before}::bigint IS NULL OR created_at < ${before})
       ORDER BY created_at DESC
       LIMIT ${params.limit};
     `;
@@ -136,6 +139,7 @@ export async function listOpenClawEvents(params: { limit: number; sessionId?: st
   const rows = await sql`
     SELECT event_id, session_key, session_id, line, timestamp, type, role, tool_name, content_preview, raw_json, created_at
     FROM openclaw_events
+    WHERE (${before}::bigint IS NULL OR created_at < ${before})
     ORDER BY created_at DESC
     LIMIT ${params.limit};
   `;

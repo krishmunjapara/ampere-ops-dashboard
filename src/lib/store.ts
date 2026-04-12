@@ -36,6 +36,10 @@ function paths() {
     runsJsonl: path.join(dir, 'cron_runs.jsonl'),
     idIndex: path.join(dir, 'id_index.json'),
     signatures: path.join(dir, 'self_heal_signatures.json'),
+
+    ocEventsJsonl: path.join(dir, 'openclaw_events.jsonl'),
+    ocEventsIndex: path.join(dir, 'openclaw_events_index.json'),
+    ocSessionsJson: path.join(dir, 'openclaw_sessions.json'),
   };
 }
 
@@ -137,4 +141,104 @@ export async function upsertSelfHealSignatures(
   }
 
   await writeJsonAtomic(signatures, existing);
+}
+
+// -------- OpenClaw activity (file store) --------
+
+export type OpenClawSessionRow = {
+  session_key: string;
+  session_id: string;
+  updated_at: number;
+  kind?: string;
+  provider?: string;
+  surface?: string;
+  chat_type?: string;
+  last_channel?: string;
+};
+
+export type OpenClawEventRow = {
+  event_id: string; // `${session_id}:${line}`
+  session_key?: string;
+  session_id: string;
+  line: number;
+  timestamp?: string;
+  type?: string;
+  role?: string;
+  tool_name?: string;
+  content_preview?: string;
+  raw_json?: string;
+  created_at: number;
+};
+
+export async function upsertOpenClawSessions(rows: OpenClawSessionRow[]) {
+  await ensureDir();
+  const { ocSessionsJson } = paths();
+
+  const existing = await readJson<Record<string, OpenClawSessionRow>>(ocSessionsJson, {});
+  for (const r of rows) {
+    if (!r.session_key) continue;
+    const prev = existing[r.session_key];
+    existing[r.session_key] = {
+      ...prev,
+      ...r,
+    };
+  }
+  await writeJsonAtomic(ocSessionsJson, existing);
+}
+
+export async function appendOpenClawEvents(rows: OpenClawEventRow[]) {
+  await ensureDir();
+  const { ocEventsJsonl, ocEventsIndex } = paths();
+
+  const idx = await readJson<Record<string, number>>(ocEventsIndex, {});
+  const toWrite: OpenClawEventRow[] = [];
+
+  for (const r of rows) {
+    if (!r.event_id) continue;
+    if (idx[r.event_id]) continue;
+    idx[r.event_id] = r.created_at;
+    toWrite.push(r);
+  }
+
+  if (toWrite.length) {
+    await fs.appendFile(ocEventsJsonl, toWrite.map(r => JSON.stringify(r)).join('\n') + '\n', 'utf8');
+    await writeJsonAtomic(ocEventsIndex, idx);
+  }
+}
+
+export async function listOpenClawEvents(params: { limit: number; sessionId?: string }): Promise<OpenClawEventRow[]> {
+  await ensureDir();
+  const { ocEventsJsonl } = paths();
+
+  let raw = '';
+  try {
+    raw = await fs.readFile(ocEventsJsonl, 'utf8');
+  } catch {
+    return [];
+  }
+
+  const rows: OpenClawEventRow[] = [];
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const row = JSON.parse(line) as OpenClawEventRow;
+      if (params.sessionId && row.session_id !== params.sessionId) continue;
+      rows.push(row);
+    } catch {
+      // skip
+    }
+  }
+
+  rows.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
+  return rows.slice(0, params.limit);
+}
+
+export async function listOpenClawSessions(): Promise<OpenClawSessionRow[]> {
+  await ensureDir();
+  const { ocSessionsJson } = paths();
+
+  const obj = await readJson<Record<string, OpenClawSessionRow>>(ocSessionsJson, {});
+  const rows = Object.values(obj);
+  rows.sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0));
+  return rows;
 }

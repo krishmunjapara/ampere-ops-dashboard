@@ -9,6 +9,7 @@ const NAV = [
   { href: '/v5/self-healing', label: 'Self-Healing' },
   { href: '/v5/ux-ideas', label: 'GA4 UX Ideas' },
   { href: '/v5/competitors', label: 'Competitors' },
+  { href: '/v5/ga4', label: 'GA4 Analytics' },
   { href: '/v5/updates', label: 'Updates' },
   { href: '/v5/agent-work', label: 'Agent Work' },
   { href: '/v5/sessions', label: 'Sessions (host-only)' },

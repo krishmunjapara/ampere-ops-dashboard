@@ -131,6 +131,18 @@ async function migrate(sql: any) {
     );
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS seen_items (
+      kind TEXT NOT NULL,
+      item_key TEXT NOT NULL,
+      first_seen BIGINT NOT NULL,
+      last_seen BIGINT NOT NULL,
+      seen_count BIGINT NOT NULL,
+      meta_json TEXT,
+      PRIMARY KEY (kind, item_key)
+    );
+  `;
+
   _migrated = true;
 }
 
@@ -228,4 +240,49 @@ export async function upsertSelfHealSignatures(sigs: SignatureRow[]) {
         last_fix_commit_sha = COALESCE(EXCLUDED.last_fix_commit_sha, self_heal_signatures.last_fix_commit_sha);
     `;
   }
+}
+
+export async function markSeenItem(params: {
+  kind: string;
+  itemKey: string;
+  now: number;
+  meta?: any;
+}): Promise<boolean> {
+  // returns true if it was NEW, false if it already existed
+
+  if (shouldUseFileStore()) {
+    // file-store doesn't enforce cross-run dedupe reliably on Vercel; rely on postgres mode.
+    return true;
+  }
+
+  const url = getDatabaseUrl();
+  const sql = neon(url);
+  await migrate(sql);
+
+  const existing = await sql`
+    SELECT item_key
+    FROM seen_items
+    WHERE kind = ${params.kind} AND item_key = ${params.itemKey}
+    LIMIT 1;
+  `;
+
+  const isNew = (existing as any[]).length === 0;
+
+  await sql`
+    INSERT INTO seen_items (kind, item_key, first_seen, last_seen, seen_count, meta_json)
+    VALUES (
+      ${params.kind},
+      ${params.itemKey},
+      ${params.now},
+      ${params.now},
+      1,
+      ${params.meta ? JSON.stringify(params.meta) : null}
+    )
+    ON CONFLICT (kind, item_key) DO UPDATE SET
+      last_seen = EXCLUDED.last_seen,
+      seen_count = seen_items.seen_count + 1,
+      meta_json = COALESCE(EXCLUDED.meta_json, seen_items.meta_json);
+  `;
+
+  return isNew;
 }

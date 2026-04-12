@@ -150,6 +150,23 @@ export async function appendCronRun(row: CronRunRow) {
   `;
 }
 
+function asNumber(v: any): number {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeRunRow(r: any): CronRunRow {
+  return {
+    id: String(r.id),
+    type: String(r.type),
+    started_at: asNumber(r.started_at),
+    finished_at: asNumber(r.finished_at),
+    status: String(r.status),
+    summary_json: String(r.summary_json),
+    created_at: asNumber(r.created_at),
+  };
+}
+
 export async function listCronRuns(params: { type?: string; limit: number }): Promise<CronRunRow[]> {
   if (shouldUseFileStore()) {
     return listCronRunsFile(params);
@@ -167,7 +184,7 @@ export async function listCronRuns(params: { type?: string; limit: number }): Pr
       ORDER BY created_at DESC
       LIMIT ${params.limit};
     `;
-    return rows as CronRunRow[];
+    return (rows as any[]).map(normalizeRunRow);
   }
 
   const rows = await sql`
@@ -176,7 +193,7 @@ export async function listCronRuns(params: { type?: string; limit: number }): Pr
     ORDER BY created_at DESC
     LIMIT ${params.limit};
   `;
-  return rows as CronRunRow[];
+  return (rows as any[]).map(normalizeRunRow);
 }
 
 export async function upsertSelfHealSignatures(sigs: SignatureRow[]) {

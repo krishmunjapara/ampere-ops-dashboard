@@ -12,12 +12,16 @@ type RunRow = {
   created_at: number;
 };
 
-function formatTime(ts: number) {
-  try {
-    return new Date(ts).toLocaleString();
-  } catch {
-    return String(ts);
+function formatTime(ts: unknown) {
+  const n = typeof ts === 'number' ? ts : Number(ts);
+  if (Number.isFinite(n)) {
+    try {
+      return new Date(n).toLocaleString();
+    } catch {
+      return String(n);
+    }
   }
+  return String(ts ?? '');
 }
 
 function badgeClass(type: string) {
@@ -58,6 +62,43 @@ function link(url: string) {
   );
 }
 
+function parseSelfHealSignature(sig: string) {
+  const parts = (sig ?? '').split('|');
+  const kind = parts[0] || 'unknown';
+
+  // fallback: kind|/path
+  if (parts.length === 2) {
+    return { kind, where: parts[1], detail: '' };
+  }
+
+  if (kind === 'api_error') {
+    const endpoint = parts[1] || '';
+    const status = parts[2] || '';
+    const where = parts[3] || '';
+    return { kind, where, detail: `${endpoint}${status ? ` (status ${status})` : ''}` };
+  }
+
+  if (kind === 'frontend_unhandled_rejection') {
+    const name = parts[1] || '';
+    const message = parts[2] || '';
+    const where = parts[3] || '';
+    const d = [name, message].filter(Boolean).join(': ');
+    return { kind, where, detail: d };
+  }
+
+  if (kind === 'frontend_error') {
+    const message = parts[1] || '';
+    const filename = parts[2] || '';
+    const line = parts[3] || '';
+    const col = parts[4] || '';
+    const where = parts[5] || '';
+    const loc = [filename, line && col ? `${line}:${col}` : line].filter(Boolean).join(' @ ');
+    return { kind, where, detail: [message, loc].filter(Boolean).join(' — ') };
+  }
+
+  return { kind, where: parts[parts.length - 1] || '', detail: parts.slice(1, -1).join(' | ') };
+}
+
 export default function RunCard({ run }: { run: RunRow }) {
   const summary = useMemo(() => safeJsonParse(run.summary_json), [run.summary_json]);
   const [showRaw, setShowRaw] = useState(false);
@@ -92,13 +133,27 @@ export default function RunCard({ run }: { run: RunRow }) {
 
           <div className="mt-3 text-xs font-semibold text-white/70">Top failures</div>
           <List>
-            {topNew.slice(0, 5).map((x: any, i: number) => (
-              <Row
-                key={i}
-                left={<span className="font-mono text-white/85">{x.signature}</span>}
-                right={<span>{x.count}</span>}
-              />
-            ))}
+            {topNew.slice(0, 5).map((x: any, i: number) => {
+              const parsed = parseSelfHealSignature(String(x.signature ?? ''));
+              return (
+                <div key={i} className="rounded-md border border-white/10 bg-black/20 p-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] rounded-md border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-white/70">
+                      {parsed.kind}
+                    </span>
+                    <div className="ml-auto text-[11px] text-white/50">{x.count}</div>
+                  </div>
+                  <div className="mt-1 text-[12px] text-white/85">
+                    <span className="text-white/50">Where:</span> <span className="font-mono">{parsed.where || '—'}</span>
+                  </div>
+                  {parsed.detail ? (
+                    <div className="mt-1 text-[12px] text-white/70">
+                      <span className="text-white/50">What:</span> {parsed.detail}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
             {topNew.length === 0 ? <div className="text-[12px] text-white/50">No failures in window.</div> : null}
           </List>
 

@@ -191,19 +191,35 @@ def main() -> int:
         if len(events_payload) >= args.max_events:
             break
 
-    payload = {
-        "idempotencyKey": f"openclaw-{int(time.time())}",
-        "payload": {
-            "sessions": sessions_payload,
-            "events": events_payload,
-        },
-    }
+    # POST in smaller chunks to avoid Vercel/body-size limits (HTTP 413).
+    base_key = f"openclaw-{int(time.time())}"
 
-    post_json(ingest_url, payload)
+    # 1) Sessions snapshot (send once)
+    post_json(
+        ingest_url,
+        {
+            "idempotencyKey": base_key + ":sessions",
+            "payload": {"sessions": sessions_payload, "events": []},
+        },
+    )
+
+    # 2) Events (chunked)
+    sent_events = 0
+    chunk_size = 200
+    for i in range(0, len(events_payload), chunk_size):
+        chunk = events_payload[i : i + chunk_size]
+        post_json(
+            ingest_url,
+            {
+                "idempotencyKey": f"{base_key}:events:{i}",
+                "payload": {"sessions": [], "events": chunk},
+            },
+        )
+        sent_events += len(chunk)
 
     write_json(state_path, {"offsets": offsets})
 
-    print(json.dumps({"ok": True, "sessions": len(sessions_payload), "events": len(events_payload)}))
+    print(json.dumps({"ok": True, "sessions": len(sessions_payload), "events": sent_events}))
     return 0
 
 

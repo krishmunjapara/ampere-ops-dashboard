@@ -17,6 +17,7 @@ import sys
 import time
 import urllib.request
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 
 def utc_now() -> datetime:
@@ -54,8 +55,22 @@ def ga4_query(property_id: str, since_minutes: int):
     creds = service_account.Credentials.from_service_account_file(sa_path)
     client = BetaAnalyticsDataClient(credentials=creds)
 
-    now = utc_now()
-    start = now - timedelta(minutes=since_minutes)
+    now_utc = utc_now()
+    start_utc = now_utc - timedelta(minutes=since_minutes)
+
+    tz_name = os.environ.get("GA4_TIMEZONE", "UTC")
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = timezone.utc
+        tz_name = "UTC"
+
+    # GA4 `dateHourMinute` is in the property timezone (unknown to us). We will derive the time window
+    # from the maximum `dateHourMinute` returned by GA4 to avoid timezone mismatches.
+    now = now_utc.astimezone(tz)
+    start = start_utc.astimezone(tz)
+    start_key = start.strftime("%Y%m%d%H%M")
+    end_key = now.strftime("%Y%m%d%H%M")
 
     def run(dimensions: list[Dimension]):
         req = RunReportRequest(
@@ -97,17 +112,40 @@ def ga4_query(property_id: str, since_minutes: int):
                 Dimension(name="customEvent:endpoint"),
                 Dimension(name="customEvent:status"),
                 Dimension(name="pagePath"),
+                Dimension(name="dateHourMinute"),
             ]
         )
         rich = True
     except Exception:
-        resp = run([Dimension(name="eventName"), Dimension(name="pagePath")])
+        resp = run([Dimension(name="eventName"), Dimension(name="pagePath"), Dimension(name="dateHourMinute")])
         rich = False
 
-    out = []
+    parsed = []
+    max_key = ""
+
     for row in resp.rows:
         dims = [dv.value for dv in row.dimension_values]
         event_count = int(row.metric_values[0].value or "0")
+        date_hm = dims[-1] if dims else ""
+        if date_hm and date_hm > max_key:
+            max_key = date_hm
+        parsed.append((dims, event_count, date_hm))
+
+    # Derive time window from GA4's latest bucket.
+    if max_key:
+        try:
+            end_dt = datetime.strptime(max_key, "%Y%m%d%H%M")
+            start_dt = end_dt - timedelta(minutes=since_minutes)
+            start_key = start_dt.strftime("%Y%m%d%H%M")
+            end_key = max_key
+        except Exception:
+            # fall back to the earlier computed keys
+            pass
+
+    out = []
+    for dims, event_count, date_hm in parsed:
+        if date_hm and (date_hm < start_key or date_hm > end_key):
+            continue
 
         if rich:
             out.append(
@@ -121,6 +159,7 @@ def ga4_query(property_id: str, since_minutes: int):
                     "endpoint": dims[6],
                     "status": dims[7],
                     "pagePath": dims[8],
+                    "dateHourMinute": date_hm,
                     "eventCount": event_count,
                 }
             )
@@ -129,6 +168,7 @@ def ga4_query(property_id: str, since_minutes: int):
                 {
                     "eventName": dims[0],
                     "pagePath": dims[1] if len(dims) > 1 else "",
+                    "dateHourMinute": date_hm,
                     "eventCount": event_count,
                 }
             )
@@ -138,20 +178,28 @@ def ga4_query(property_id: str, since_minutes: int):
 
 def signature_for(r: dict) -> str:
     kind = r.get("eventName") or "unknown"
+    page = r.get("pagePath") or ""
 
     # Rich signatures (only available once GA4 custom definitions exist)
     if kind == "frontend_error" and (r.get("message") or r.get("filename")):
-        parts = [r.get("message") or "", r.get("filename") or "", r.get("lineno") or "", r.get("colno") or ""]
+        parts = [
+            r.get("message") or "",
+            r.get("filename") or "",
+            r.get("lineno") or "",
+            r.get("colno") or "",
+            page,
+        ]
         return "frontend_error|" + "|".join(parts)
+
     if kind == "frontend_unhandled_rejection" and (r.get("message") or r.get("name")):
-        parts = [r.get("name") or "", r.get("message") or ""]
+        parts = [r.get("name") or "", r.get("message") or "", page]
         return "frontend_unhandled_rejection|" + "|".join(parts)
+
     if kind == "api_error" and (r.get("endpoint") or r.get("status")):
-        parts = [r.get("endpoint") or "", r.get("status") or ""]
+        parts = [r.get("endpoint") or "", r.get("status") or "", page]
         return "api_error|" + "|".join(parts)
 
     # Fallback signature: eventName + pagePath (still useful for heatmap-like triage)
-    page = r.get("pagePath") or ""
     return kind + ("|" + page if page else "")
 
 
@@ -173,7 +221,7 @@ def main() -> int:
     top = sorted(counts.items(), key=lambda x: x[1], reverse=True)
     top_new = [{"signature": s, "count": c} for s, c in top[:5] if c > 0]
 
-    idempotency = utc_now().strftime("self-heal-%Y%m%d-%H")
+    idempotency = utc_now().strftime("self-heal-%Y%m%d-%H%M")
     finished_at = int(time.time() * 1000)
 
     payload = {
@@ -183,7 +231,10 @@ def main() -> int:
         "status": "ok",
         "digest": {"sinceMinutes": args.since_minutes, "mode": mode, "topNew": top_new, "topRecurring": []},
         "action": None,
-        "signatures": [{"signature": s, "status": "new", "lastCount": c} for s, c in top_new],
+        "signatures": [
+            {"signature": x["signature"], "status": "new", "lastCount": x["count"]}
+            for x in top_new
+        ],
     }
 
     post_json(args.dashboard_url.rstrip("/") + "/api/ingest/self-heal-run", payload)

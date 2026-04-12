@@ -1,5 +1,13 @@
 import { neon } from '@neondatabase/serverless';
-import { appendCronRun as appendCronRunFile, listCronRuns as listCronRunsFile, upsertSelfHealSignatures as upsertSelfHealSignaturesFile } from '@/lib/store';
+import {
+  appendCronRun as appendCronRunFile,
+  listCronRuns as listCronRunsFile,
+  upsertSelfHealSignatures as upsertSelfHealSignaturesFile,
+  appendOpenClawEvents as appendOpenClawEventsFile,
+  listOpenClawEvents as listOpenClawEventsFile,
+  listOpenClawSessions as listOpenClawSessionsFile,
+  upsertOpenClawSessions as upsertOpenClawSessionsFile,
+} from '@/lib/store';
 
 export type CronRunRow = {
   id: string;
@@ -20,6 +28,31 @@ export type SignatureRow = {
   daily_branch?: string;
   daily_pr_url?: string;
   last_fix_commit_sha?: string;
+};
+
+export type OpenClawSessionRow = {
+  session_key: string;
+  session_id: string;
+  updated_at: number;
+  kind?: string;
+  provider?: string;
+  surface?: string;
+  chat_type?: string;
+  last_channel?: string;
+};
+
+export type OpenClawEventRow = {
+  event_id: string; // `${session_id}:${line}`
+  session_key?: string;
+  session_id: string;
+  line: number;
+  timestamp?: string;
+  type?: string;
+  role?: string;
+  tool_name?: string;
+  content_preview?: string;
+  raw_json?: string;
+  created_at: number;
 };
 
 function getDatabaseUrl() {
@@ -64,6 +97,31 @@ async function migrate(sql: any) {
       daily_branch TEXT,
       daily_pr_url TEXT,
       last_fix_commit_sha TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS openclaw_sessions (
+      session_key TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      updated_at BIGINT NOT NULL,
+      kind TEXT,
+      provider TEXT,
+      surface TEXT,
+      chat_type TEXT,
+      last_channel TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS openclaw_events (
+      event_id TEXT PRIMARY KEY,
+      session_key TEXT,
+      session_id TEXT NOT NULL,
+      line BIGINT NOT NULL,
+      timestamp TEXT,
+      type TEXT,
+      role TEXT,
+      tool_name TEXT,
+      content_preview TEXT,
+      raw_json TEXT,
+      created_at BIGINT NOT NULL
     );
   `;
 

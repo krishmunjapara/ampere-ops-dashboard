@@ -22,6 +22,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <Link href="/activity" className={navClass(pathname === '/activity')}>
               All Activity
             </Link>
+            <Link href="/agent-work" className={navClass(pathname === '/agent-work')}>
+              Agent Work
+            </Link>
             <Link href="/self-healing" className={navClass(pathname === '/self-healing')}>
               Self-Healing
             </Link>

@@ -76,7 +76,7 @@ let _migrated = false;
 async function migrate(sql: any) {
   if (_migrated) return;
 
-  // Minimal schema for our needs.
+  // Neon serverless doesn't allow multiple SQL commands per prepared statement.
   await sql`
     CREATE TABLE IF NOT EXISTS cron_runs (
       id TEXT PRIMARY KEY,
@@ -87,7 +87,9 @@ async function migrate(sql: any) {
       summary_json TEXT NOT NULL,
       created_at BIGINT NOT NULL
     );
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS self_heal_signatures (
       signature TEXT PRIMARY KEY,
       status TEXT NOT NULL,
@@ -98,7 +100,9 @@ async function migrate(sql: any) {
       daily_pr_url TEXT,
       last_fix_commit_sha TEXT
     );
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS openclaw_sessions (
       session_key TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
@@ -109,7 +113,9 @@ async function migrate(sql: any) {
       chat_type TEXT,
       last_channel TEXT
     );
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS openclaw_events (
       event_id TEXT PRIMARY KEY,
       session_key TEXT,

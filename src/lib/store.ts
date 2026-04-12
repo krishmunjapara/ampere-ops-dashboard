@@ -78,7 +78,14 @@ export async function appendCronRun(row: CronRunRow) {
   await writeJsonAtomic(idIndex, idx);
 }
 
-export async function listCronRuns(params: { type?: string; limit: number; before?: number }): Promise<CronRunRow[]> {
+export async function listCronRuns(params: {
+  type?: string;
+  status?: string;
+  q?: string;
+  limit: number;
+  before?: number;
+  offset?: number;
+}): Promise<CronRunRow[]> {
   await ensureDir();
   const { runsJsonl } = paths();
 
@@ -89,12 +96,19 @@ export async function listCronRuns(params: { type?: string; limit: number; befor
     return [];
   }
 
+  const q = (params.q ?? '').trim().toLowerCase();
+
   const rows: CronRunRow[] = [];
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue;
     try {
       const row = JSON.parse(line) as CronRunRow;
       if (params.type && row.type !== params.type) continue;
+      if (params.status && row.status !== params.status) continue;
+      if (q) {
+        const hay = String(row.summary_json ?? '').toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
       if (params.before != null && Number(row.created_at ?? 0) >= params.before) continue;
       rows.push(row);
     } catch {
@@ -103,7 +117,32 @@ export async function listCronRuns(params: { type?: string; limit: number; befor
   }
 
   rows.sort((a, b) => (Number(b.created_at ?? 0) - Number(a.created_at ?? 0)));
-  return rows.slice(0, params.limit);
+  const offset = Math.max(0, Number(params.offset ?? 0) || 0);
+  return rows.slice(offset, offset + params.limit);
+}
+
+export async function getCronRunById(id: string): Promise<CronRunRow | null> {
+  if (!id) return null;
+  await ensureDir();
+  const { runsJsonl } = paths();
+
+  let raw = '';
+  try {
+    raw = await fs.readFile(runsJsonl, 'utf8');
+  } catch {
+    return null;
+  }
+
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const row = JSON.parse(line) as CronRunRow;
+      if (row.id === id) return row;
+    } catch {
+      // skip
+    }
+  }
+  return null;
 }
 
 type SignatureRow = {

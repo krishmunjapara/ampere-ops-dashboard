@@ -1,10 +1,10 @@
 import Shell from '@/components/Shell';
-import SessionsDashboard from '@/components/SessionsDashboard';
+import CommandCenter from '@/components/CommandCenter';
 
 export default function Home() {
   return (
     <Shell>
-      <SessionsDashboard />
+      <CommandCenter />
     </Shell>
   );
 }

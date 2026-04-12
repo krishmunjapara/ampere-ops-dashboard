@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import {
   appendCronRun as appendCronRunFile,
   listCronRuns as listCronRunsFile,
+  getCronRunById as getCronRunByIdFile,
   upsertSelfHealSignatures as upsertSelfHealSignaturesFile,
   appendOpenClawEvents as appendOpenClawEventsFile,
   listOpenClawEvents as listOpenClawEventsFile,
@@ -179,9 +180,16 @@ function normalizeRunRow(r: any): CronRunRow {
   };
 }
 
-export async function listCronRuns(params: { type?: string; limit: number; before?: number }): Promise<CronRunRow[]> {
+export async function listCronRuns(params: {
+  type?: string;
+  status?: string;
+  q?: string;
+  limit: number;
+  before?: number;
+  offset?: number;
+}): Promise<CronRunRow[]> {
   if (shouldUseFileStore()) {
-    return listCronRunsFile(params);
+    return listCronRunsFile(params as any);
   }
 
   const url = getDatabaseUrl();
@@ -189,14 +197,25 @@ export async function listCronRuns(params: { type?: string; limit: number; befor
   await migrate(sql);
 
   const before = params.before ?? null;
+  const offset = Math.max(0, Number(params.offset ?? 0) || 0);
+  const q = (params.q ?? '').trim();
 
-  if (params.type) {
+  // Neon template tags don't support dynamic WHERE composition elegantly;
+  // keep it simple with explicit branches.
+  if (params.type || params.status || q) {
+    const type = params.type ?? null;
+    const status = params.status ?? null;
+    const qLike = q ? `%${q}%` : null;
+
     const rows = await sql`
       SELECT id, type, started_at, finished_at, status, summary_json, created_at
       FROM cron_runs
-      WHERE type = ${params.type}
+      WHERE (${type}::text IS NULL OR type = ${type})
+        AND (${status}::text IS NULL OR status = ${status})
+        AND (${qLike}::text IS NULL OR summary_json ILIKE ${qLike})
         AND (${before}::bigint IS NULL OR created_at < ${before})
       ORDER BY created_at DESC
+      OFFSET ${offset}
       LIMIT ${params.limit};
     `;
     return (rows as any[]).map(normalizeRunRow);
@@ -207,9 +226,32 @@ export async function listCronRuns(params: { type?: string; limit: number; befor
     FROM cron_runs
     WHERE (${before}::bigint IS NULL OR created_at < ${before})
     ORDER BY created_at DESC
+    OFFSET ${offset}
     LIMIT ${params.limit};
   `;
   return (rows as any[]).map(normalizeRunRow);
+}
+
+export async function getCronRunById(id: string): Promise<CronRunRow | null> {
+  if (!id) return null;
+
+  if (shouldUseFileStore()) {
+    return getCronRunByIdFile(id) as any;
+  }
+
+  const url = getDatabaseUrl();
+  const sql = neon(url);
+  await migrate(sql);
+
+  const rows = await sql`
+    SELECT id, type, started_at, finished_at, status, summary_json, created_at
+    FROM cron_runs
+    WHERE id = ${id}
+    LIMIT 1;
+  `;
+
+  const r = (rows as any[])[0];
+  return r ? normalizeRunRow(r) : null;
 }
 
 export async function upsertSelfHealSignatures(sigs: SignatureRow[]) {

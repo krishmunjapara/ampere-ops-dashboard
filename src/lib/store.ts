@@ -78,7 +78,7 @@ export async function appendCronRun(row: CronRunRow) {
   await writeJsonAtomic(idIndex, idx);
 }
 
-export async function listCronRuns(params: { type?: string; limit: number }): Promise<CronRunRow[]> {
+export async function listCronRuns(params: { type?: string; limit: number; before?: number }): Promise<CronRunRow[]> {
   await ensureDir();
   const { runsJsonl } = paths();
 
@@ -95,13 +95,14 @@ export async function listCronRuns(params: { type?: string; limit: number }): Pr
     try {
       const row = JSON.parse(line) as CronRunRow;
       if (params.type && row.type !== params.type) continue;
+      if (params.before != null && Number(row.created_at ?? 0) >= params.before) continue;
       rows.push(row);
     } catch {
       // skip bad line
     }
   }
 
-  rows.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
+  rows.sort((a, b) => (Number(b.created_at ?? 0) - Number(a.created_at ?? 0)));
   return rows.slice(0, params.limit);
 }
 
@@ -206,7 +207,7 @@ export async function appendOpenClawEvents(rows: OpenClawEventRow[]) {
   }
 }
 
-export async function listOpenClawEvents(params: { limit: number; sessionId?: string }): Promise<OpenClawEventRow[]> {
+export async function listOpenClawEvents(params: { limit: number; sessionId?: string; before?: number }): Promise<OpenClawEventRow[]> {
   await ensureDir();
   const { ocEventsJsonl } = paths();
 
@@ -223,13 +224,14 @@ export async function listOpenClawEvents(params: { limit: number; sessionId?: st
     try {
       const row = JSON.parse(line) as OpenClawEventRow;
       if (params.sessionId && row.session_id !== params.sessionId) continue;
+      if (params.before != null && Number(row.created_at ?? 0) >= params.before) continue;
       rows.push(row);
     } catch {
       // skip
     }
   }
 
-  rows.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
+  rows.sort((a, b) => (Number(b.created_at ?? 0) - Number(a.created_at ?? 0)));
   return rows.slice(0, params.limit);
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Pager from '@/components/Pager';
 
 type EventRow = {
   event_id: string;
@@ -41,33 +42,33 @@ function preview(e: EventRow) {
 export default function AgentWorkFeed() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [before, setBefore] = useState<number | null>(null);
+  const [stack, setStack] = useState<number[]>([]);
+  const [nextBefore, setNextBefore] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function load(pageBefore: number | null) {
+    setLoading(true);
+    try {
+      const qsBefore = pageBefore ? `before=${pageBefore}&` : '';
+      const res = await fetch(`/api/openclaw/activity?${qsBefore}limit=50`, { cache: 'no-store' });
+      const json = await res.json();
+      if (!json.ok) {
+        setError(json.error ?? 'Failed');
+        return;
+      }
+      setError(null);
+      setEvents(json.events ?? []);
+      setNextBefore(json.page?.nextBefore ?? null);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let alive = true;
-
-    async function load() {
-      try {
-        const res = await fetch('/api/openclaw/activity?limit=200', { cache: 'no-store' });
-        const json = await res.json();
-        if (!alive) return;
-        if (!json.ok) {
-          setError(json.error ?? 'Failed');
-          return;
-        }
-        setError(null);
-        setEvents(json.events ?? []);
-      } catch (e: any) {
-        if (!alive) return;
-        setError(e?.message ?? String(e));
-      }
-    }
-
-    load();
-    const t = setInterval(load, 5000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
+    load(null);
   }, []);
 
   const grouped = useMemo(() => {
@@ -77,14 +78,28 @@ export default function AgentWorkFeed() {
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5">
-      <div className="border-b border-white/10 px-3 py-2 text-xs font-semibold text-white/80">
-        Recent agent activity
+      <div className="flex items-center gap-3 border-b border-white/10 px-3 py-2">
+        <div className="text-xs font-semibold text-white/80">Agent work feed</div>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            className="text-[11px] rounded-md border border-white/10 bg-white/5 px-2 py-1 text-white/70 hover:text-white hover:border-white/20"
+            onClick={() => {
+              setBefore(null);
+              setStack([]);
+              load(null);
+            }}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+
       <div className="p-3">
         {error ? <div className="text-sm text-red-300">{error}</div> : null}
         {!error && grouped.length === 0 ? (
           <div className="text-sm text-white/60">
-            No activity ingested yet. Enable the exporter cron on the Ampere server.
+            No activity ingested yet. Ensure the exporter cron is enabled on the Ampere server.
           </div>
         ) : null}
 
@@ -101,6 +116,29 @@ export default function AgentWorkFeed() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-3">
+          <Pager
+            canPrev={stack.length > 0}
+            canNext={Boolean(nextBefore) && grouped.length > 0}
+            onPrev={() => {
+              const prev = stack[stack.length - 1];
+              if (prev == null) return;
+              const newStack = stack.slice(0, -1);
+              setStack(newStack);
+              const cursor = prev === 0 ? null : prev;
+              setBefore(cursor);
+              load(cursor);
+            }}
+            onNext={() => {
+              if (!nextBefore) return;
+              setStack(s => [...s, before ?? 0]);
+              setBefore(nextBefore);
+              load(nextBefore);
+            }}
+            right={<div className="text-[11px] text-white/40">Page size: 50</div>}
+          />
         </div>
       </div>
     </div>
